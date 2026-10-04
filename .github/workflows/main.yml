@@ -17,18 +17,39 @@ jobs:
         with:
           xcode-version: '15.4'
 
-      - name: Build Xcode Project
+      - name: Detect and Build Xcode Project
         run: |
           mkdir -p build
+          
+          # Find any .xcodeproj or .xcworkspace file in the repository
+          PROJ=$(find . -maxdepth 2 -name "*.xcodeproj" -o -name "*.xcworkspace" | head -n 1)
+          echo "Found project: $PROJ"
+          
+          if [ -z "$PROJ" ]; then
+            echo "No Xcode project found. Running CMake if CMakeLists.txt exists..."
+            if [ -f "CMakeLists.txt" ]; then
+              mkdir -p build_cmake && cd build_cmake
+              cmake -G Xcode -DCMAKE_TOOLCHAIN_FILE=../files/ios/iOS.cmake ..
+              cd ..
+              PROJ=$(find . -maxdepth 2 -name "*.xcodeproj" | head -n 1)
+            fi
+          fi
+
+          # Extract scheme name automatically
+          SCHEME=$(xcodebuild -list -project "$PROJ" 2>/dev/null | grep -A 10 "Schemes:" | tail -n +2 | head -n 1 | xargs)
+          echo "Using scheme: $SCHEME"
+
+          # Build Archive
           xcodebuild archive \
-            -project OpenMW.xcodeproj \
-            -scheme OpenMW \
+            -project "$PROJ" \
+            -scheme "$SCHEME" \
             -configuration Release \
             -sdk iphoneos \
             -archivePath build/OpenMW.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
+          # Create Payload and Zip to IPA
           mkdir -p build/Payload
           cp -r build/OpenMW.xcarchive/Products/Applications/*.app build/Payload/
           cd build

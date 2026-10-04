@@ -1,0 +1,41 @@
+name: Build OpenMW iOS IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-13
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '15.0'
+
+      - name: Build Xcode Project
+        run: |
+          mkdir -p build
+          xcodebuild archive \
+            -project OpenMW.xcodeproj \
+            -scheme OpenMW \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/OpenMW.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+          mkdir -p build/Payload
+          cp -r build/OpenMW.xcarchive/Products/Applications/*.app build/Payload/
+          cd build
+          zip -r OpenMW.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenMW-iOS-IPA
+          path: build/OpenMW.ipa
